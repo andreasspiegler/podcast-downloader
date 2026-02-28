@@ -9,11 +9,12 @@ Lädt alle Folgen eines Podcasts via RSS-Feed herunter.
 - Dateinamen mit Datums-Prefix (`YYYY-MM-DD_Titel.mp3`)
 - Persistenter Duplikatschutz: bereits heruntergeladene Folgen werden übersprungen (auch nach Neustart)
 - Erkennung per GUID oder Audio-URL
+- Abschlussbericht mit Anzahl heruntergeladener, übersprungener und fehlgeschlagener Episoden
 
 ## Voraussetzungen
 
 ```bash
-pip install requests
+pip install -r requirements.txt
 ```
 
 ## Verwendung
