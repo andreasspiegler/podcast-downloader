@@ -21,26 +21,29 @@ def sanitize_filename(filename):
 
 def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
     """Lädt alle Podcast-Folgen aus dem RSS-Feed herunter."""
-    
+
     print(f"Lade RSS-Feed von: {rss_url}")
-    
+
     # RSS-Feed laden
     try:
-        response = requests.get(rss_url)
+        response = requests.get(rss_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Fehler beim Laden des RSS-Feeds: {e}")
         return
-    
+
     # XML parsen
     try:
         root = ET.fromstring(response.content)
     except ET.ParseError as e:
         print(f"Fehler beim Parsen des RSS-Feeds: {e}")
         return
-    
+
     # Podcast-Informationen extrahieren
     channel = root.find('.//channel')
+    if channel is None:
+        print("Fehler: Kein <channel>-Element im RSS-Feed gefunden.")
+        return
     podcast_title = channel.find('title').text if channel.find('title') is not None else "Unbekannter Podcast"
     print(f"Podcast: {podcast_title}")
 
@@ -66,7 +69,11 @@ def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
     # Alle Folgen finden
     episodes = root.findall('.//item')
     print(f"Gefundene Folgen: {len(episodes)}")
-    
+
+    count_downloaded = 0
+    count_skipped = 0
+    count_failed = 0
+
     for i, episode in enumerate(episodes, 1):
         # Episode-Informationen extrahieren
         title_elem = episode.find('title')
@@ -99,6 +106,7 @@ def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
         episode_key = guid_text or audio_url
         if episode_key in downloaded_keys:
             print(f"Überspringe {i}/{len(episodes)}: {title} (bereits heruntergeladen)")
+            count_skipped += 1
             continue
         
         # Dateiname erstellen
@@ -119,13 +127,7 @@ def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
             filename = f"{name_without_ext}-{counter}{ext}"
             filepath = os.path.join(podcast_dir, filename)
             counter += 1
-        
-        # Prüfen ob Datei bereits existiert
-        # (existiert durch obige Schleife nicht mehr, aber doppelt gemoppelt schadet nicht)
-        if os.path.exists(filepath):
-            print(f"Überspringe {i}/{len(episodes)}: {title} (bereits vorhanden)")
-            continue
-        
+
         print(f"Lade {i}/{len(episodes)}: {title}")
         
         # Audio-Datei herunterladen
@@ -133,14 +135,15 @@ def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
             headers = {"User-Agent": "podcast-downloader/1.0"}
             audio_response = requests.get(audio_url, stream=True, headers=headers, timeout=30)
             audio_response.raise_for_status()
-            
+
             with open(filepath, 'wb') as f:
-                for chunk in audio_response.iter_content(chunk_size=8192):
+                for chunk in audio_response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         f.write(chunk)
-            
+
             file_size = os.path.getsize(filepath) / (1024 * 1024)
             print(f"  ✓ Gespeichert: {filename} ({file_size:.1f} MB)")
+            count_downloaded += 1
             # Erfolgreich: Key persistieren
             downloaded_keys.add(episode_key)
             try:
@@ -148,17 +151,23 @@ def download_podcast_episodes(rss_url, download_dir="podcast_episodes"):
                     json.dump(sorted(list(downloaded_keys)), f, ensure_ascii=False, indent=2)
             except Exception:
                 pass
-            
+
         except requests.RequestException as e:
             print(f"  ✗ Fehler beim Herunterladen: {e}")
+            count_failed += 1
             if os.path.exists(filepath):
                 os.remove(filepath)
         except Exception as e:
             print(f"  ✗ Unerwarteter Fehler: {e}")
+            count_failed += 1
             if os.path.exists(filepath):
                 os.remove(filepath)
-    
-    print(f"\nDownload abgeschlossen! Dateien gespeichert in: {os.path.abspath(download_dir)}")
+
+    print(f"\n=== Abschlussbericht ===")
+    print(f"  Heruntergeladen: {count_downloaded}")
+    print(f"  Übersprungen:    {count_skipped}")
+    print(f"  Fehler:          {count_failed}")
+    print(f"  Gespeichert in:  {os.path.abspath(podcast_dir)}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
