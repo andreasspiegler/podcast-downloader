@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Downloaded files
+podcast_episodes/
+
+# State files
+.downloaded.json
+
+# OS
+.DS_Store
